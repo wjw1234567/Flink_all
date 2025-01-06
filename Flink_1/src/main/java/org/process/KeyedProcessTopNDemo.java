@@ -129,10 +129,6 @@ public class KeyedProcessTopNDemo {
      * key:vc是Integer类型
      * W：时间窗口类型TimeWindow
      *
-     *
-     *
-     *
-     *
      */
     public static class WindowResult extends ProcessWindowFunction<Integer, Tuple3<Integer,Integer,Long>,Integer,TimeWindow>{
 
