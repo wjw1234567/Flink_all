@@ -3,10 +3,11 @@ package org.state;
 import org.Partition.WaterSensorMapFunction;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
+import org.apache.flink.api.common.state.ReducingState;
+import org.apache.flink.api.common.state.ReducingStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -16,17 +17,17 @@ import org.apache.flink.util.Collector;
 import org.bean.WaterSensor;
 
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Map;
 
 
 /**
  *
- * 检测每种传感器的水位值，针对每种传感器输出最高的3个水位值，就输出报警
+ * 检测每种传感器的水位值，计算每种传感器的水位和
  *
  */
 
 
-public class keyedListStateDemo {
+public class keyedReducingStateDemo {
 
     public static void main(String[] args)  throws Exception{
 
@@ -59,48 +60,34 @@ public class keyedListStateDemo {
                 .process(
                         new KeyedProcessFunction<String, WaterSensor, String>() {
                             //定义初始化
-                            ListState<Integer> vcListState;
+                            //key传一个水位值，value传次数count
+                            ReducingState<Integer> vcSumReducingState;
 
                             @Override
                             public void open(Configuration parameters) throws Exception {
                                 super.open(parameters);
-                                vcListState=getRuntimeContext().getListState(new ListStateDescriptor<Integer>("vcListState",Types.INT));
+                                vcSumReducingState=getRuntimeContext().getReducingState(new ReducingStateDescriptor<Integer>("vcSumReducingState",
+                                        new ReduceFunction<Integer>() {
+                                            @Override
+                                            public Integer reduce(Integer value1, Integer value2) throws Exception {
+                                                return value1+value2;
+                                            }
+                                        }
+                                        , Types.INT));
+
+
                             }
 
                             @Override
                             public void processElement(WaterSensor value, Context ctx, Collector<String> out) throws Exception {
+                                //来一条数据添加到reduceing状态里面
+                                vcSumReducingState.add(value.getVc());
 
-                                //1.来一条存在list状态
-                                vcListState.add(value.getVc());
-
-                                //2.1从vcListState里面拷贝到一个新的list里面，排序
-
-                                Iterable<Integer> vcList = vcListState.get();
-
-                                ArrayList<Integer> list_tmp = new ArrayList<>();
-                                for (Integer vc:vcList){
-                                    list_tmp.add(vc);
-
-                                }
-                                //2.2对list_tmp 进行降序
-                                list_tmp.sort(((o1, o2) -> o2-o1));
-
-
-                                // todo 3.重要一步，因为来一条算一条（list_tmp的个数一定是连续变大，只要去掉最后一个即可） 只保存3个最大的
-                                if (list_tmp.size()>3) {
-                                    list_tmp.remove(3);
-                                }
-
-
-                                out.collect("传感器id="+value.getId()+",最大的水位值="+list_tmp.toString());
-
-
-                                // 4.更新list状态
-                                vcListState.update(list_tmp);
+                                out.collect("传感器id为"+value.getId()+"水位值的总和="+vcSumReducingState.get());
 
                             }
                         }
-                );
+                ).print();
 
 
 

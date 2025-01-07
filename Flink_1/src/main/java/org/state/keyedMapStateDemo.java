@@ -5,8 +5,8 @@ import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -17,16 +17,17 @@ import org.bean.WaterSensor;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Map;
 
 
 /**
  *
- * 检测每种传感器的水位值，针对每种传感器输出最高的3个水位值，就输出报警
+ * 检测每种传感器的水位值，统计每种传感器每种水位值出现的次数
  *
  */
 
 
-public class keyedListStateDemo {
+public class keyedMapStateDemo {
 
     public static void main(String[] args)  throws Exception{
 
@@ -59,48 +60,66 @@ public class keyedListStateDemo {
                 .process(
                         new KeyedProcessFunction<String, WaterSensor, String>() {
                             //定义初始化
-                            ListState<Integer> vcListState;
+                            //key传一个水位值，value传次数count
+                            MapState<Integer,Integer> vcCountMapState;
 
                             @Override
                             public void open(Configuration parameters) throws Exception {
                                 super.open(parameters);
-                                vcListState=getRuntimeContext().getListState(new ListStateDescriptor<Integer>("vcListState",Types.INT));
+                                vcCountMapState=getRuntimeContext().getMapState(new MapStateDescriptor<Integer,Integer>("vcCountMapState",Types.INT,Types.INT));
+
+
                             }
 
                             @Override
                             public void processElement(WaterSensor value, Context ctx, Collector<String> out) throws Exception {
 
-                                //1.来一条存在list状态
-                                vcListState.add(value.getVc());
+                                //判断是否存在vc对应的key
 
-                                //2.1从vcListState里面拷贝到一个新的list里面，排序
+                                Integer vc = value.getVc();
+                                if (vcCountMapState.contains(vc)) {
+                                    Integer count= vcCountMapState.get(vc);
+                                    vcCountMapState.put(vc,++count);
 
-                                Iterable<Integer> vcList = vcListState.get();
-
-                                ArrayList<Integer> list_tmp = new ArrayList<>();
-                                for (Integer vc:vcList){
-                                    list_tmp.add(vc);
-
-                                }
-                                //2.2对list_tmp 进行降序
-                                list_tmp.sort(((o1, o2) -> o2-o1));
-
-
-                                // todo 3.重要一步，因为来一条算一条（list_tmp的个数一定是连续变大，只要去掉最后一个即可） 只保存3个最大的
-                                if (list_tmp.size()>3) {
-                                    list_tmp.remove(3);
+                                }else {
+                                    //如果不包含vc,则存进去
+                                    vcCountMapState.put(vc,1);
                                 }
 
 
-                                out.collect("传感器id="+value.getId()+",最大的水位值="+list_tmp.toString());
+                                StringBuilder outStr = new StringBuilder();
+                                outStr.append("传感器id为"+value.getId()+"\n");
+                                for (Map.Entry<Integer, Integer> vcCount : vcCountMapState.entries()) {
+                                   outStr.append(vcCount.toString()+"\n");
+
+                                }
+
+                                outStr.append("vcCountMapState的迭代器为"+vcCountMapState.iterator().next()+"\n");
+                                outStr.append("vcCountMapState的entries为"+vcCountMapState.entries().toString()+"\n");
+                                outStr.append("===================>");
 
 
-                                // 4.更新list状态
-                                vcListState.update(list_tmp);
+                                out.collect(outStr.toString());
+
+
+                                /*
+                                vcCountMapState.entries();
+                                vcCountMapState.put();
+                                vcCountMapState.contains();
+                                vcCountMapState.entries();
+                                vcCountMapState.keys();
+                                vcCountMapState.iterator();
+                                vcCountMapState.isEmpty();
+                                vcCountMapState.remove();
+                                vcCountMapState.clear();
+                                */
+
+
+
 
                             }
                         }
-                );
+                ).print();
 
 
 
