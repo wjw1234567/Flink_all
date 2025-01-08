@@ -45,6 +45,7 @@ public class OperatorBroadcastStateDemo {
         DataStreamSource<String> configDs = env.socketTextStream("192.168.254.128", 8888);
 
         // TODO 1.将配置流广播出去,配置流的状态描述器
+        // 配置流的key写死thresold，value是Integer类型
         MapStateDescriptor<String, Integer> broadcastMapstate = new MapStateDescriptor<>("broadcast-state", Types.STRING, Types.INT);
 
         // 得到带有广播状态的广播流
@@ -110,14 +111,8 @@ public class OperatorBroadcastStateDemo {
 
         ).print();
 
-
-
-
-
         env.execute();
 
-
     }
-
 
 }
