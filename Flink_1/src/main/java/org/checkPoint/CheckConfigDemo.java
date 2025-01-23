@@ -25,6 +25,12 @@ public class CheckConfigDemo {
 
         env.setParallelism(1);
 
+        //TODO 开启changeLog
+        //要求checkpoint的最大并发必须为1，其他参数建议再flink-conf配置文件中指定
+        env.enableChangelogStateBackend(true);
+
+
+
 
         //TODO 检查点配置
         //1.启用检查点，默认是barrier对齐的,周期为5S,精准一次
@@ -42,14 +48,6 @@ public class CheckConfigDemo {
         // RETAIN_ON_CANCELLATION  取消作业时表示保留
 
         checkpointConfig.setExternalizedCheckpointCleanup(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
-
-
-
-        
-
-
-
-
 
 
 
