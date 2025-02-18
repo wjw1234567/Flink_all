@@ -31,7 +31,7 @@ public class WatermarkOutOfOrderDemo {
         env.setParallelism(2);
 
 
-        SingleOutputStreamOperator<WaterSensor> sensorDS = env.socketTextStream("192.168.254.128", 7777).map(new WaterSensorMapFunction());
+        SingleOutputStreamOperator<WaterSensor> sensorDS = env.socketTextStream("node1", 7777).map(new WaterSensorMapFunction());
 
 
         // TODO 1.定义Watermark策略
